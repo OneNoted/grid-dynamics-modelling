@@ -15,3 +15,9 @@ body { margin: 0; }
 .event { fill: #ef444455; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; color: #b8c7d9; font-size: .92rem; }
 .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+
+.actions { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.actions li { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 1fr) minmax(140px, auto); gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid #24445f; border-radius: 12px; background: #0f2135; }
+.actions time { color: #9fb3c8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.actions span { color: #fef3c7; font-weight: 700; }
+.actions b { color: #c4b5fd; font-weight: 600; }
