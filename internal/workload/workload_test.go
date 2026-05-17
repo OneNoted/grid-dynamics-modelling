@@ -31,6 +31,22 @@ func TestTraceLoadsAndScalesDemand(t *testing.T) {
 	}
 }
 
+func TestParseAllowsMissingMetadataColumn(t *testing.T) {
+	trace, err := ParseCSV(strings.NewReader(`timestamp,workload_id,workload_kind,source,gpu_count,it_power_kw,deferrable_fraction,urgency_class
+2026-01-01T00:00:00Z,w,inference,synthetic,4,25,0.1,normal
+`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	point := trace.Points[0]
+	if point.Metadata != "" {
+		t.Fatalf("metadata=%q, want empty optional value", point.Metadata)
+	}
+	if point.Timestamp.Format(time.RFC3339) == point.Metadata {
+		t.Fatalf("metadata was populated from timestamp column: %+v", point)
+	}
+}
+
 func TestQueueDefersAndRecoversWork(t *testing.T) {
 	var q Queue
 	step := q.Step(12, true, 0, 5*time.Minute)
