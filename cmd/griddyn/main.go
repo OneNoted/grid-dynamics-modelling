@@ -89,7 +89,7 @@ func runScenario(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	result, err := sim.RunBaseline(cfg)
+	result, err := sim.Run(cfg)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
@@ -98,7 +98,7 @@ func runScenario(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "run %q complete: %d baseline samples written to %s\n", cfg.Name, len(result.Baseline), outDir)
+	fmt.Fprintf(stdout, "run %q complete: %d baseline samples and %d controlled samples written to %s\n", cfg.Name, len(result.Baseline), len(result.Controlled), outDir)
 	return 0
 }
 

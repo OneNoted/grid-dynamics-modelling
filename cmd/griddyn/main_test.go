@@ -92,7 +92,7 @@ func TestRunScenarioWritesBaselineArtifacts(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code=%d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "baseline samples written") {
+	if !strings.Contains(stdout.String(), "controlled samples written") {
 		t.Fatalf("unexpected stdout: %s", stdout.String())
 	}
 	for _, name := range []string{"manifest.json", "events.json", "baseline_timeseries.csv"} {
