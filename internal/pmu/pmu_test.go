@@ -74,6 +74,29 @@ func TestParseCSVIgnoresBadQualityWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestParseCSVRequiresQualityColumnWhenFilteringBadQuality(t *testing.T) {
+	csv := `timestamp,frequency_hz,voltage_pu
+2026-01-01T00:00:00Z,60,1
+`
+	_, err := ParseCSV(strings.NewReader(csv), ParseOptions{IgnoreBadQuality: true})
+	if err == nil || !strings.Contains(err.Error(), "ignore_bad_quality requires") {
+		t.Fatalf("expected quality-column error, got %v", err)
+	}
+}
+
+func TestParseCSVAllowsZeroVoltageSamples(t *testing.T) {
+	csv := `timestamp,frequency_hz,voltage_pu
+2026-01-01T00:00:00Z,60,0
+`
+	series, err := ParseCSV(strings.NewReader(csv), ParseOptions{})
+	if err != nil {
+		t.Fatalf("ParseCSV returned error: %v", err)
+	}
+	if series.Samples[0].VoltagePU != 0 {
+		t.Fatalf("voltage=%f, want 0", series.Samples[0].VoltagePU)
+	}
+}
+
 func TestResampleHold(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	samples := []Sample{
@@ -89,6 +112,25 @@ func TestResampleHold(t *testing.T) {
 	}
 	if resampled[1].FrequencyHz != 60 || resampled[2].FrequencyHz != 59.94 {
 		t.Fatalf("unexpected hold values: %+v", resampled)
+	}
+}
+
+func TestResampleHoldUsesOnlySamplesAtOrBeforeOutputTime(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	samples := []Sample{
+		{Timestamp: base, FrequencyHz: 60, VoltagePU: 1},
+		{Timestamp: base.Add(900 * time.Millisecond), FrequencyHz: 59.90, VoltagePU: 0.90},
+		{Timestamp: base.Add(2 * time.Second), FrequencyHz: 59.90, VoltagePU: 0.90},
+	}
+	resampled, err := ResampleHold(samples, time.Second)
+	if err != nil {
+		t.Fatalf("ResampleHold returned error: %v", err)
+	}
+	if resampled[0].FrequencyHz != 60 {
+		t.Fatalf("first bucket looked ahead: %+v", resampled)
+	}
+	if resampled[1].FrequencyHz != 59.90 {
+		t.Fatalf("second bucket did not pick prior disturbance sample: %+v", resampled)
 	}
 }
 
