@@ -1,0 +1,15 @@
+# Generated run artifacts and local datasets
+/runs/
+data/raw/
+data/external/
+
+# Build outputs
+/griddyn
+bin/
+dist/
+*.test
+coverage.out
+
+# Local/editor files
+.DS_Store
+.env

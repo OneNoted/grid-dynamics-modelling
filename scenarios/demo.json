@@ -1,0 +1,44 @@
+{
+  "name": "gpu-ramp-pmu-event-demo",
+  "simulation": {
+    "start": "2026-01-01T00:00:00Z",
+    "duration": "60m",
+    "step": "1s"
+  },
+  "pmu": {
+    "file": "data/samples/pmu_event_tiny.csv",
+    "frequency_column": "frequency_hz",
+    "voltage_column": "voltage_pu",
+    "voltage_angle_column": "voltage_angle_deg",
+    "quality_flag_column": "quality_flag",
+    "source_id_column": "source_id",
+    "ignore_bad_quality": true,
+    "bad_quality_flags": ["bad", "invalid", "1"],
+    "resample_step": "1s"
+  },
+  "workload": {
+    "source": "data/samples/genai_power_tiny.csv",
+    "scale_mw": 80,
+    "ramp_start": "5m",
+    "ramp_duration": "10m",
+    "deferrable_fraction": 0.25,
+    "urgency_class": "normal"
+  },
+  "facility": {
+    "cooling_lag_seconds": 180,
+    "pue_base": 1.15
+  },
+  "bess": {
+    "power_mw": 20,
+    "energy_mwh": 10,
+    "initial_soc": 0.60,
+    "min_soc": 0.20,
+    "max_soc": 1.0
+  },
+  "controller": {
+    "ramp_limit_mw_per_min": 5,
+    "recovery_window": "30m",
+    "event_frequency_low_hz": 59.95,
+    "event_voltage_low_pu": 0.95
+  }
+}
