@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/griddyn-smoke.XXXXXX")}" 
+RUN_DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/griddyn-smoke.XXXXXX")}"
 cd "$ROOT"
 
 echo "== Go tests =="
@@ -13,7 +13,7 @@ npm --prefix web run lint
 npm --prefix web run build
 
 echo "== Demo run =="
-rm -rf "$RUN_DIR"
+mkdir -p "$RUN_DIR"
 go run ./cmd/griddyn run scenarios/demo.json --out "$RUN_DIR"
 
 echo "== Metrics summary =="
