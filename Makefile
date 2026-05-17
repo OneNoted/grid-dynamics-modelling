@@ -1,4 +1,4 @@
-.PHONY: test build help
+.PHONY: test build help smoke
 
 test:
 	go test ./...
@@ -8,3 +8,6 @@ build:
 
 help:
 	go run ./cmd/griddyn --help
+
+smoke:
+	scripts/e2e-smoke.sh

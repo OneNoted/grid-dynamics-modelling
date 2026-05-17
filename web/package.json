@@ -1,0 +1,10 @@
+{
+  "name": "griddyn-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node --check static/app.js",
+    "test": "node --check static/app.js",
+    "build": "node --check static/app.js"
+  }
+}
