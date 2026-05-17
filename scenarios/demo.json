@@ -6,7 +6,7 @@
     "step": "1s"
   },
   "pmu": {
-    "file": "data/samples/pmu_event_tiny.csv",
+    "file": "../data/samples/pmu_event_tiny.csv",
     "frequency_column": "frequency_hz",
     "voltage_column": "voltage_pu",
     "voltage_angle_column": "voltage_angle_deg",
@@ -17,7 +17,7 @@
     "resample_step": "1s"
   },
   "workload": {
-    "source": "data/samples/genai_power_tiny.csv",
+    "source": "../data/samples/genai_power_tiny.csv",
     "scale_mw": 80,
     "ramp_start": "0s",
     "ramp_duration": "10m",

@@ -31,6 +31,16 @@ func TestPolicyRecoversDeferredWorkWithinWindow(t *testing.T) {
 	}
 }
 
+func TestPolicyKeepsRecoveryRateUntilQueueClears(t *testing.T) {
+	p := New(5, 30*time.Minute)
+	d := workload.Demand{ITMW: 80, UrgentMW: 60, DeferrableMW: 20}
+	first := p.Decide(d, 15, false, time.Minute, 80, 80)
+	second := p.Decide(d, 14.5, false, time.Minute, 80, 80)
+	if first.RecoveredMW != second.RecoveredMW {
+		t.Fatalf("recovery rate decayed: first=%+v second=%+v", first, second)
+	}
+}
+
 func TestPolicyRequestsChargingToCapDownwardRamp(t *testing.T) {
 	p := New(5, 30*time.Minute)
 	request := p.BESSRequest(50, 40, time.Minute)

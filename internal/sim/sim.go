@@ -3,9 +3,9 @@ package sim
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"grid-dynamics-modelling/internal/bess"
@@ -109,27 +109,14 @@ func runControlled(cfg scenario.Config, events pmu.EventSummary) ([]Point, error
 	var queue workload.Queue
 	controlled := make([]Point, 0, int(duration/step)+1)
 	previousNet := 0.0
-	recoveryRateMW := 0.0
 	for ts := start; !ts.After(start.Add(duration)); ts = ts.Add(step) {
 		demand := workloadModel.DemandAt(ts, start)
 		eventActive := isEventActive(events, ts)
 		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, 0)
 		if eventActive {
-			recoveryRateMW = 0
 			queue.Step(demand.DeferrableMW, true, 0, step)
 		} else {
-			if queue.DeferredMWh > 0 && recoveryRateMW == 0 {
-				recoveryRateMW = queue.DeferredMWh / (0.9 * recoveryWindow.Hours())
-			}
-			if recoveryRateMW > 0 {
-				decision.RecoveredMW = math.Min(queue.DeferredMWh/step.Hours(), recoveryRateMW)
-				decision.DeliveredITMW = demand.ITMW + decision.RecoveredMW
-				decision.Action = "recover_deferred_work"
-			}
 			queue.Step(0, false, decision.RecoveredMW, step)
-			if queue.DeferredMWh == 0 {
-				recoveryRateMW = 0
-			}
 		}
 		fac := facilityModel.Step(decision.DeliveredITMW, step)
 		dispatch := battery.Dispatch(policy.BESSRequest(previousNet, fac.FacilityMW, step), step)
@@ -277,12 +264,13 @@ func sampleAt(samples []pmu.Sample, ts time.Time) pmu.Sample {
 	if !ts.After(samples[0].Timestamp) {
 		return samples[0]
 	}
-	for i := len(samples) - 1; i >= 0; i-- {
-		if !samples[i].Timestamp.After(ts) {
-			return samples[i]
-		}
+	i := sort.Search(len(samples), func(i int) bool {
+		return samples[i].Timestamp.After(ts)
+	})
+	if i == 0 {
+		return samples[0]
 	}
-	return samples[0]
+	return samples[i-1]
 }
 
 func isEventActive(events pmu.EventSummary, ts time.Time) bool {
