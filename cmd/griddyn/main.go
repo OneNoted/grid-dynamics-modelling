@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"grid-dynamics-modelling/internal/api"
 	"grid-dynamics-modelling/internal/metrics"
 	"grid-dynamics-modelling/internal/pmu"
 	"grid-dynamics-modelling/internal/scenario"
@@ -175,13 +176,13 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-	if err := requireRunArtifacts(runDir); err != nil {
+	server, err := api.NewServer(runDir, os.DirFS("web/static"))
+	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	handler := http.FileServer(http.Dir(runDir))
-	fmt.Fprintf(stdout, "serving run artifacts from %s at http://%s\n", runDir, addr)
-	if err := http.ListenAndServe(addr, handler); err != nil {
+	fmt.Fprintf(stdout, "serving run dashboard from %s at http://%s\n", runDir, addr)
+	if err := http.ListenAndServe(addr, server.Handler()); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -199,18 +200,6 @@ func readMetricsFile(runDir string) (metrics.Summary, error) {
 		return metrics.Summary{}, fmt.Errorf("parse metrics %q: %w", path, err)
 	}
 	return summary, nil
-}
-
-func requireRunArtifacts(runDir string) error {
-	for _, name := range []string{"manifest.json", "baseline_timeseries.csv", "controlled_timeseries.csv", "metrics.json"} {
-		path := filepath.Join(runDir, name)
-		if info, err := os.Stat(path); err != nil {
-			return fmt.Errorf("run artifact %q is required: %w", path, err)
-		} else if info.IsDir() {
-			return fmt.Errorf("run artifact %q is a directory", path)
-		}
-	}
-	return nil
 }
 
 func normalizeRunArgs(args []string) []string {
