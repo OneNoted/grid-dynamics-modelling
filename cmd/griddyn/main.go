@@ -6,10 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"grid-dynamics-modelling/internal/metrics"
 	"grid-dynamics-modelling/internal/pmu"
 	"grid-dynamics-modelling/internal/scenario"
 	"grid-dynamics-modelling/internal/sim"
@@ -32,6 +35,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runValidateScenario(args[1:], stdout, stderr)
 	case "run":
 		return runScenario(args[1:], stdout, stderr)
+	case "metrics":
+		return runMetrics(args[1:], stdout, stderr)
+	case "serve":
+		return runServe(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", cmd)
 		printRootHelp(stderr)
@@ -47,17 +54,23 @@ Usage:
   griddyn validate-pmu [flags] <pmu.csv>
   griddyn validate-scenario <scenario.json>
   griddyn run [flags] <scenario.json>
+  griddyn metrics [flags] <run-dir>
+  griddyn serve --run <run-dir>
 
 Commands:
   validate-pmu       Validate normalized or mapped PMU CSV and report detected events
   validate-scenario  Validate a JSON scenario config contract
-  run                Run a scenario and emit baseline artifacts
+  run                Run a scenario and emit reproducible artifacts
+  metrics            Print KPI metrics from a completed run
+  serve              Serve completed run artifacts over HTTP
 
 Examples:
   griddyn validate-pmu data/samples/pmu_event_tiny.csv
   griddyn validate-pmu --frequency-column freq --voltage-column vpu data/samples/pmu_mapped_tiny.csv
   griddyn validate-scenario scenarios/demo.json
-  griddyn run scenarios/demo.json --out runs/demo`)
+  griddyn run scenarios/demo.json --out runs/demo
+  griddyn metrics runs/demo
+  griddyn serve --run runs/demo`)
 }
 
 func runScenario(args []string, stdout, stderr io.Writer) int {
@@ -99,7 +112,105 @@ func runScenario(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stdout, "run %q complete: %d baseline samples and %d controlled samples written to %s\n", cfg.Name, len(result.Baseline), len(result.Controlled), outDir)
+	fmt.Fprintf(stdout, "metrics: feasible=%t peak_ramp_reduction=%.2f MW/min ramp_violations=%d\n", result.Metrics.Feasible, result.Metrics.PeakRampRateReductionMWPerMin, result.Metrics.RampRateViolationCount)
 	return 0
+}
+
+func runMetrics(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("metrics", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	jsonOut := false
+	fs.BoolVar(&jsonOut, "json", false, "emit raw metrics JSON")
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Usage: griddyn metrics [flags] <run-dir>")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 1 || strings.TrimSpace(fs.Arg(0)) == "" {
+		fs.Usage()
+		return 2
+	}
+	summary, err := readMetricsFile(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if jsonOut {
+		data, _ := json.MarshalIndent(summary, "", "  ")
+		fmt.Fprintln(stdout, string(data))
+		return 0
+	}
+	fmt.Fprintf(stdout, "Ramp limit: %.2f MW/min\n", summary.RampLimitMWPerMin)
+	fmt.Fprintf(stdout, "Peak ramp reduction: %.2f MW/min (baseline %.2f, controlled %.2f)\n", summary.PeakRampRateReductionMWPerMin, summary.PeakBaselineRampMWPerMin, summary.PeakControlledRampMWPerMin)
+	fmt.Fprintf(stdout, "Ramp violations: %d (worst %.2f MW/min over limit)\n", summary.RampRateViolationCount, summary.WorstRampRateViolationMWPerMin)
+	fmt.Fprintf(stdout, "Recovery time: %.0fs, deferred work: %.3f MWh\n", summary.WorkloadRecoveryTimeSeconds, summary.DeferredWorkMWh)
+	fmt.Fprintf(stdout, "BESS discharged: %.3f MWh, SoC range %.2f-%.2f\n", summary.BESSEnergyDischargedMWh, summary.BESSMinSOC, summary.BESSMaxSOC)
+	fmt.Fprintf(stdout, "Feasible: %t\n", summary.Feasible)
+	return 0
+}
+
+func runServe(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	runDir := ""
+	addr := "127.0.0.1:8080"
+	fs.StringVar(&runDir, "run", runDir, "completed run directory")
+	fs.StringVar(&addr, "addr", addr, "HTTP listen address")
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Usage: griddyn serve --run <run-dir> [--addr 127.0.0.1:8080]")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if strings.TrimSpace(runDir) == "" {
+		fs.Usage()
+		return 2
+	}
+	if err := requireRunArtifacts(runDir); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	handler := http.FileServer(http.Dir(runDir))
+	fmt.Fprintf(stdout, "serving run artifacts from %s at http://%s\n", runDir, addr)
+	if err := http.ListenAndServe(addr, handler); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return 0
+}
+
+func readMetricsFile(runDir string) (metrics.Summary, error) {
+	path := filepath.Join(runDir, "metrics.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return metrics.Summary{}, fmt.Errorf("read metrics %q: %w", path, err)
+	}
+	var summary metrics.Summary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		return metrics.Summary{}, fmt.Errorf("parse metrics %q: %w", path, err)
+	}
+	return summary, nil
+}
+
+func requireRunArtifacts(runDir string) error {
+	for _, name := range []string{"manifest.json", "baseline_timeseries.csv", "controlled_timeseries.csv", "metrics.json"} {
+		path := filepath.Join(runDir, name)
+		if info, err := os.Stat(path); err != nil {
+			return fmt.Errorf("run artifact %q is required: %w", path, err)
+		} else if info.IsDir() {
+			return fmt.Errorf("run artifact %q is a directory", path)
+		}
+	}
+	return nil
 }
 
 func normalizeRunArgs(args []string) []string {

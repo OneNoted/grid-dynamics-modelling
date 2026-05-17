@@ -176,8 +176,6 @@ func RunBaseline(cfg scenario.Config) (Result, error) {
 		})
 	}
 	manifest := runs.NewManifest(cfg, pmuSeries)
-	now := time.Now().UTC()
-	manifest.CreatedAt = &now
 	return Result{Config: cfg, Manifest: manifest, Events: events, Baseline: baseline, PMUSummary: pmuSeries.Summary()}, nil
 }
 
