@@ -37,6 +37,7 @@ type Model struct {
 	RampStart          time.Duration
 	RampDuration       time.Duration
 	DeferrableFraction float64
+	maxTraceKW         float64
 }
 
 type Demand struct {
@@ -125,16 +126,31 @@ func NewModel(trace Trace, scaleMW float64, rampStart, rampDuration time.Duratio
 	if deferrableFraction < 0 || deferrableFraction > 1 {
 		return Model{}, errors.New("workload deferrable fraction must be between 0 and 1")
 	}
-	return Model{Trace: trace, ScaleMW: scaleMW, RampStart: rampStart, RampDuration: rampDuration, DeferrableFraction: deferrableFraction}, nil
+	return Model{
+		Trace:              trace,
+		ScaleMW:            scaleMW,
+		RampStart:          rampStart,
+		RampDuration:       rampDuration,
+		DeferrableFraction: deferrableFraction,
+		maxTraceKW:         trace.MaxKW(),
+	}, nil
 }
 
 func (m Model) DemandAt(ts time.Time, simStart time.Time) Demand {
 	elapsed := ts.Sub(simStart)
 	ramp := rampFraction(elapsed, m.RampStart, m.RampDuration)
-	traceFraction := m.Trace.FractionAt(ts)
+	traceFraction := m.traceFractionAt(ts)
 	itMW := m.ScaleMW * ramp * traceFraction
 	deferrable := itMW * m.DeferrableFraction
 	return Demand{Timestamp: ts.UTC(), ITMW: itMW, UrgentMW: itMW - deferrable, DeferrableMW: deferrable, RampFraction: ramp, TraceFraction: traceFraction}
+}
+
+func (m Model) traceFractionAt(ts time.Time) float64 {
+	if m.maxTraceKW <= 0 {
+		return 0
+	}
+	point := m.Trace.PointAt(ts)
+	return clamp(point.ITPowerKW/m.maxTraceKW, 0, 1)
 }
 
 func (t Trace) FractionAt(ts time.Time) float64 {
@@ -189,6 +205,9 @@ func (q *Queue) Step(deferrableMW float64, eventActive bool, recoveryCapacityMW 
 	recoveryCapacityMW = nonNegative(recoveryCapacityMW)
 	recovered := math.Min(q.DeferredMWh, recoveryCapacityMW*hours)
 	q.DeferredMWh -= recovered
+	if q.DeferredMWh <= 1e-6 {
+		q.DeferredMWh = 0
+	}
 	return QueueStep{ServedDeferrableMW: served + recovered/hours, RecoveredMWh: recovered, RemainingMWh: q.DeferredMWh, InfeasibleRecovery: q.DeferredMWh > 1e-9 && recoveryCapacityMW == 0}
 }
 
@@ -220,6 +239,9 @@ func workloadIndex(header []string) (indexes, error) {
 		if _, ok := idx[required]; !ok {
 			return nil, fmt.Errorf("missing required workload column %q", required)
 		}
+	}
+	if _, ok := idx["metadata"]; !ok {
+		idx["metadata"] = -1
 	}
 	return idx, nil
 }
