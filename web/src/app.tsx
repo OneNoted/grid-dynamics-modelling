@@ -16,6 +16,9 @@ type TimeseriesPoint = {
   bess_power_mw: number;
   deferred_queue_mwh: number;
   event_active: boolean;
+  controller_action?: string;
+  deferred_mw?: number;
+  recovered_mw?: number;
 };
 
 export type DashboardData = {

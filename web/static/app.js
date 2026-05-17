@@ -29,6 +29,11 @@ function queueChart(controlled) {
   const width = 1080, height = 220;
   return `<section class="panel"><h2>Deferred workload queue</h2><svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Deferred queue"><path class="queue" d="${pointsPath(controlled, 'deferred_queue_mwh', width, height)}"/></svg></section>`;
 }
+function actionTimeline(controlled) {
+  const rows = controlled.filter(p => p.controller_action && p.controller_action !== 'none').slice(0, 12);
+  const items = rows.map(p => `<li><time>${p.timestamp}</time><span>${p.controller_action}</span><b>queue ${fmt(Number(p.deferred_queue_mwh), 3)} MWh</b></li>`).join('');
+  return `<section class="panel"><h2>Controller action timeline</h2><ul class="actions">${items || '<li><span>No controller actions recorded</span></li>'}</ul></section>`;
+}
 async function main() {
   const [manifest, metrics, baseline, controlled] = await Promise.all([
     getJSON('/api/runs/current/manifest'),
@@ -36,6 +41,6 @@ async function main() {
     getJSON('/api/runs/current/timeseries?mode=baseline'),
     getJSON('/api/runs/current/timeseries?mode=controlled'),
   ]);
-  app.innerHTML = `<h1>${manifest.scenario_name}</h1><p class="muted">Baseline vs controlled AI datacenter grid-response run.</p><section class="grid">${card('Feasible', metrics.feasible ? 'yes' : 'no')}${card('Peak ramp reduction', fmt(metrics.peak_ramp_rate_reduction_mw_per_min), ' MW/min')}${card('Ramp violations', metrics.ramp_rate_violation_count, '')}${card('BESS discharged', fmt(metrics.bess_energy_discharged_mwh, 3), ' MWh')}${card('SoC range', `${fmt(metrics.bess_min_soc)}–${fmt(metrics.bess_max_soc)}`)}${card('Recovery', fmt(metrics.workload_recovery_time_seconds, 0), ' s')}</section>${chart('Net grid draw', baseline, controlled, 'net_grid_mw')}${chart('BESS dispatch', baseline, controlled, 'bess_power_mw')}${queueChart(controlled)}`;
+  app.innerHTML = `<h1>${manifest.scenario_name}</h1><p class="muted">Baseline vs controlled AI datacenter grid-response run.</p><section class="grid">${card('Feasible', metrics.feasible ? 'yes' : 'no')}${card('Peak ramp reduction', fmt(metrics.peak_ramp_rate_reduction_mw_per_min), ' MW/min')}${card('Ramp violations', metrics.ramp_rate_violation_count, '')}${card('BESS discharged', fmt(metrics.bess_energy_discharged_mwh, 3), ' MWh')}${card('SoC range', `${fmt(metrics.bess_min_soc)}–${fmt(metrics.bess_max_soc)}`)}${card('Recovery', fmt(metrics.workload_recovery_time_seconds, 0), ' s')}</section>${chart('Net grid draw', baseline, controlled, 'net_grid_mw')}${chart('BESS dispatch', baseline, controlled, 'bess_power_mw')}${queueChart(controlled)}${actionTimeline(controlled)}`;
 }
 main().catch(error => { app.innerHTML = `<h1>Unable to load run</h1><pre>${error.stack || error.message}</pre>`; });

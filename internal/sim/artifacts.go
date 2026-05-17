@@ -14,13 +14,13 @@ func WritePointsCSV(path string, points []Point) error {
 	}
 	defer f.Close()
 	cw := csv.NewWriter(f)
-	header := []string{"timestamp", "mode", "frequency_hz", "voltage_pu", "it_mw", "urgent_mw", "deferrable_mw", "cooling_mw", "facility_mw", "bess_power_mw", "bess_soc", "net_grid_mw", "deferred_queue_mwh", "event_active"}
+	header := []string{"timestamp", "mode", "frequency_hz", "voltage_pu", "it_mw", "urgent_mw", "deferrable_mw", "cooling_mw", "facility_mw", "bess_power_mw", "bess_soc", "net_grid_mw", "deferred_queue_mwh", "event_active", "controller_action", "deferred_mw", "recovered_mw"}
 	if err := cw.Write(header); err != nil {
 		return fmt.Errorf("write CSV header: %w", err)
 	}
 	for _, p := range points {
 		row := []string{
-			p.Timestamp.Format("2006-01-02T15:04:05Z07:00"), string(p.Mode), f64(p.FrequencyHz), f64(p.VoltagePU), f64(p.ITMW), f64(p.UrgentMW), f64(p.DeferrableMW), f64(p.CoolingMW), f64(p.FacilityMW), f64(p.BESSPowerMW), f64(p.BESSSOC), f64(p.NetGridMW), f64(p.DeferredQueueMWh), strconv.FormatBool(p.EventActive),
+			p.Timestamp.Format("2006-01-02T15:04:05Z07:00"), string(p.Mode), f64(p.FrequencyHz), f64(p.VoltagePU), f64(p.ITMW), f64(p.UrgentMW), f64(p.DeferrableMW), f64(p.CoolingMW), f64(p.FacilityMW), f64(p.BESSPowerMW), f64(p.BESSSOC), f64(p.NetGridMW), f64(p.DeferredQueueMWh), strconv.FormatBool(p.EventActive), p.ControllerAction, f64(p.DeferredMW), f64(p.RecoveredMW),
 		}
 		if err := cw.Write(row); err != nil {
 			return fmt.Errorf("write CSV row: %w", err)
