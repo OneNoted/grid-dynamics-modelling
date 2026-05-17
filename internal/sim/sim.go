@@ -108,15 +108,14 @@ func runControlled(cfg scenario.Config, events pmu.EventSummary) ([]Point, error
 	for ts := start; !ts.After(start.Add(duration)); ts = ts.Add(step) {
 		demand := workloadModel.DemandAt(ts, start)
 		eventActive := isEventActive(events, ts)
-		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, previousNet)
+		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, 0)
 		if eventActive {
 			queue.Step(demand.DeferrableMW, true, 0, step)
 		} else {
 			queue.Step(0, false, decision.RecoveredMW, step)
 		}
 		fac := facilityModel.Step(decision.DeliveredITMW, step)
-		decision = policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, fac.FacilityMW)
-		dispatch := battery.Dispatch(decision.BESSRequestMW, step)
+		dispatch := battery.Dispatch(policy.BESSRequest(previousNet, fac.FacilityMW, step), step)
 		pmuSample := sampleAt(pmuSeries.Samples, ts)
 		net := fac.FacilityMW - dispatch.ActualMW
 		controlled = append(controlled, Point{
