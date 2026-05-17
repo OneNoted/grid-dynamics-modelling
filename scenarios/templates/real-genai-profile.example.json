@@ -1,15 +1,14 @@
 {
-  "name": "gpu-ramp-pmu-event-demo",
+  "name": "real-genai-profile-demo",
   "simulation": {
     "start": "2026-01-01T00:00:00Z",
     "duration": "60m",
     "step": "1s"
   },
   "pmu": {
-    "file": "../data/samples/pmu_event_tiny.csv",
+    "file": "data/samples/pmu_event_tiny.csv",
     "frequency_column": "frequency_hz",
     "voltage_column": "voltage_pu",
-    "voltage_angle_column": "voltage_angle_deg",
     "quality_flag_column": "quality_flag",
     "source_id_column": "source_id",
     "ignore_bad_quality": true,
@@ -17,12 +16,15 @@
     "resample_step": "1s"
   },
   "workload": {
-    "source": "../data/samples/genai_power_tiny.csv",
+    "source": "data/external/genai-workload-profiles/selected-profile.normalized.csv",
     "scale_mw": 80,
     "ramp_start": "0s",
     "ramp_duration": "10m",
     "deferrable_fraction": 0.25,
-    "urgency_class": "normal"
+    "urgency_class": "normal",
+    "source_name": "Dataset of Generative AI Workload Power Profiles",
+    "citation": "Dataset of Generative AI Workload Power Profiles, DOI: 10.7799/3025227",
+    "license": "See dataset landing page and downloaded metadata"
   },
   "facility": {
     "cooling_lag_seconds": 180,

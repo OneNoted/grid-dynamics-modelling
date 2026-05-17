@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"grid-dynamics-modelling/internal/scenario"
@@ -49,6 +50,26 @@ func TestRunBaselineEmitsDeterministicSeriesAndArtifacts(t *testing.T) {
 	}
 	if len(records) != len(result.Baseline)+1 {
 		t.Fatalf("CSV rows=%d baseline=%d", len(records), len(result.Baseline))
+	}
+}
+
+func TestControlledRunRecordsActionsAndRecovery(t *testing.T) {
+	cfg, err := scenario.LoadJSON("../../scenarios/demo.json")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	result, err := Run(cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	var sawDefer, sawRecover, sawDispatch bool
+	for _, point := range result.Controlled {
+		sawDefer = sawDefer || strings.Contains(point.ControllerAction, "defer_deferrable")
+		sawRecover = sawRecover || strings.Contains(point.ControllerAction, "recover_deferred_work")
+		sawDispatch = sawDispatch || strings.Contains(point.ControllerAction, "dispatch_bess")
+	}
+	if !sawDefer || !sawRecover || !sawDispatch || !result.Metrics.Feasible {
+		t.Fatalf("expected feasible demo with defer/recover/dispatch actions; defer=%t recover=%t dispatch=%t metrics=%+v", sawDefer, sawRecover, sawDispatch, result.Metrics)
 	}
 }
 

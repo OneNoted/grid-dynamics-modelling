@@ -39,6 +39,9 @@ type Point struct {
 	NetGridMW        float64   `json:"net_grid_mw"`
 	DeferredQueueMWh float64   `json:"deferred_queue_mwh"`
 	EventActive      bool      `json:"event_active"`
+	ControllerAction string    `json:"controller_action,omitempty"`
+	DeferredMW       float64   `json:"deferred_mw,omitempty"`
+	RecoveredMW      float64   `json:"recovered_mw,omitempty"`
 }
 
 type Result struct {
@@ -117,13 +120,17 @@ func runControlled(cfg scenario.Config, events pmu.EventSummary) ([]Point, error
 		}
 		fac := facilityModel.Step(decision.DeliveredITMW, step)
 		dispatch := battery.Dispatch(policy.BESSRequest(previousNet, fac.FacilityMW, step), step)
+		action := decision.Action
+		if dispatch.ActualMW > 0 {
+			action += "+dispatch_bess"
+		}
 		pmuSample := sampleAt(pmuSeries.Samples, ts)
 		net := fac.FacilityMW - dispatch.ActualMW
 		controlled = append(controlled, Point{
 			Timestamp: ts.UTC(), Mode: "controlled", FrequencyHz: pmuSample.FrequencyHz, VoltagePU: pmuSample.VoltagePU,
 			ITMW: decision.DeliveredITMW, UrgentMW: demand.UrgentMW, DeferrableMW: demand.DeferrableMW, CoolingMW: fac.CoolingMW,
 			FacilityMW: fac.FacilityMW, BESSPowerMW: dispatch.ActualMW, BESSSOC: dispatch.SOC, NetGridMW: net,
-			DeferredQueueMWh: queue.DeferredMWh, EventActive: eventActive,
+			DeferredQueueMWh: queue.DeferredMWh, EventActive: eventActive, ControllerAction: action, DeferredMW: decision.DeferredMW, RecoveredMW: decision.RecoveredMW,
 		})
 		previousNet = net
 	}
@@ -176,8 +183,6 @@ func RunBaseline(cfg scenario.Config) (Result, error) {
 		})
 	}
 	manifest := runs.NewManifest(cfg, pmuSeries)
-	now := time.Now().UTC()
-	manifest.CreatedAt = &now
 	return Result{Config: cfg, Manifest: manifest, Events: events, Baseline: baseline, PMUSummary: pmuSeries.Summary()}, nil
 }
 
