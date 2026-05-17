@@ -15,8 +15,6 @@ func TestRunBaselineEmitsDeterministicSeriesAndArtifacts(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	cfg.Simulation.Duration = "10s"
-	cfg.PMU.File = "../../" + cfg.PMU.File
-	cfg.Workload.Source = "../../" + cfg.Workload.Source
 	result, err := RunBaseline(cfg)
 	if err != nil {
 		t.Fatalf("run baseline: %v", err)

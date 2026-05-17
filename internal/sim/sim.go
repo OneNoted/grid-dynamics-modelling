@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"grid-dynamics-modelling/internal/facility"
@@ -155,12 +156,13 @@ func sampleAt(samples []pmu.Sample, ts time.Time) pmu.Sample {
 	if !ts.After(samples[0].Timestamp) {
 		return samples[0]
 	}
-	for i := len(samples) - 1; i >= 0; i-- {
-		if !samples[i].Timestamp.After(ts) {
-			return samples[i]
-		}
+	i := sort.Search(len(samples), func(i int) bool {
+		return samples[i].Timestamp.After(ts)
+	})
+	if i == 0 {
+		return samples[0]
 	}
-	return samples[0]
+	return samples[i-1]
 }
 
 func isEventActive(events pmu.EventSummary, ts time.Time) bool {
