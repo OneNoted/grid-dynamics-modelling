@@ -17,8 +17,6 @@ func TestServerExposesRunArtifacts(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	cfg.Simulation.Duration = "5s"
-	cfg.PMU.File = "../../" + cfg.PMU.File
-	cfg.Workload.Source = "../../" + cfg.Workload.Source
 	result, err := sim.Run(cfg)
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -52,8 +50,6 @@ func TestServerServesDashboardIndexFromConfiguredFS(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	cfg.Simulation.Duration = "1s"
-	cfg.PMU.File = "../../" + cfg.PMU.File
-	cfg.Workload.Source = "../../" + cfg.Workload.Source
 	result, err := sim.Run(cfg)
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -80,8 +76,6 @@ func TestServerRejectsBadTimeseriesMode(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	cfg.Simulation.Duration = "1s"
-	cfg.PMU.File = "../../" + cfg.PMU.File
-	cfg.Workload.Source = "../../" + cfg.Workload.Source
 	result, err := sim.Run(cfg)
 	if err != nil {
 		t.Fatalf("run: %v", err)
