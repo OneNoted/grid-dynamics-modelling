@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -98,7 +99,21 @@ func LoadJSON(path string) (Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
+	cfg.resolveRelativePaths(filepath.Dir(path))
 	return cfg, nil
+}
+
+func (c *Config) resolveRelativePaths(baseDir string) {
+	c.PMU.File = resolveRelativePath(baseDir, c.PMU.File)
+	c.Workload.Source = resolveRelativePath(baseDir, c.Workload.Source)
+}
+
+func resolveRelativePath(baseDir, raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || filepath.IsAbs(trimmed) {
+		return trimmed
+	}
+	return filepath.Clean(filepath.Join(baseDir, trimmed))
 }
 
 func (c Config) Validate() error {

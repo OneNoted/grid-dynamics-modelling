@@ -1,6 +1,9 @@
 package scenario
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -20,6 +23,35 @@ func validConfig() Config {
 func TestValidateAcceptsValidConfig(t *testing.T) {
 	if err := validConfig().Validate(); err != nil {
 		t.Fatalf("expected valid config: %v", err)
+	}
+}
+
+func TestLoadJSONResolvesDataPathsRelativeToScenarioFile(t *testing.T) {
+	dir := t.TempDir()
+	scenarioDir := filepath.Join(dir, "nested")
+	if err := os.MkdirAll(scenarioDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := validConfig()
+	cfg.PMU.File = "pmu.csv"
+	cfg.Workload.Source = "workload.csv"
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(scenarioDir, "scenario.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadJSON(path)
+	if err != nil {
+		t.Fatalf("LoadJSON: %v", err)
+	}
+	if loaded.PMU.File != filepath.Join(scenarioDir, "pmu.csv") {
+		t.Fatalf("pmu path=%q", loaded.PMU.File)
+	}
+	if loaded.Workload.Source != filepath.Join(scenarioDir, "workload.csv") {
+		t.Fatalf("workload path=%q", loaded.Workload.Source)
 	}
 }
 

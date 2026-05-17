@@ -15,9 +15,8 @@ func TestRunBaselineEmitsDeterministicSeriesAndArtifacts(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	cfg.Simulation.Duration = "10s"
-	cfg.PMU.File = "../../" + cfg.PMU.File
-	cfg.Workload.Source = "../../" + cfg.Workload.Source
 	result, err := Run(cfg)
+
 	if err != nil {
 		t.Fatalf("run baseline: %v", err)
 	}
@@ -59,8 +58,6 @@ func TestControlledRunReportsFeasibleAndInfeasibleFixtures(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	cfg.Simulation.Duration = "20m"
-	cfg.PMU.File = "../../" + cfg.PMU.File
-	cfg.Workload.Source = "../../" + cfg.Workload.Source
 	cfg.Workload.ScaleMW = 80
 	cfg.BESS.PowerMW = 100
 	cfg.BESS.EnergyMWh = 50

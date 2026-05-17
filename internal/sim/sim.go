@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"grid-dynamics-modelling/internal/bess"
@@ -108,15 +109,14 @@ func runControlled(cfg scenario.Config, events pmu.EventSummary) ([]Point, error
 	for ts := start; !ts.After(start.Add(duration)); ts = ts.Add(step) {
 		demand := workloadModel.DemandAt(ts, start)
 		eventActive := isEventActive(events, ts)
-		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, previousNet)
+		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, 0)
 		if eventActive {
 			queue.Step(demand.DeferrableMW, true, 0, step)
 		} else {
 			queue.Step(0, false, decision.RecoveredMW, step)
 		}
 		fac := facilityModel.Step(decision.DeliveredITMW, step)
-		decision = policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, fac.FacilityMW)
-		dispatch := battery.Dispatch(decision.BESSRequestMW, step)
+		dispatch := battery.Dispatch(policy.BESSRequest(previousNet, fac.FacilityMW, step), step)
 		pmuSample := sampleAt(pmuSeries.Samples, ts)
 		net := fac.FacilityMW - dispatch.ActualMW
 		controlled = append(controlled, Point{
@@ -257,12 +257,13 @@ func sampleAt(samples []pmu.Sample, ts time.Time) pmu.Sample {
 	if !ts.After(samples[0].Timestamp) {
 		return samples[0]
 	}
-	for i := len(samples) - 1; i >= 0; i-- {
-		if !samples[i].Timestamp.After(ts) {
-			return samples[i]
-		}
+	i := sort.Search(len(samples), func(i int) bool {
+		return samples[i].Timestamp.After(ts)
+	})
+	if i == 0 {
+		return samples[0]
 	}
-	return samples[0]
+	return samples[i-1]
 }
 
 func isEventActive(events pmu.EventSummary, ts time.Time) bool {

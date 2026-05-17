@@ -17,6 +17,7 @@ const (
 	DefaultTimestampColumn = "timestamp"
 	DefaultFrequencyColumn = "frequency_hz"
 	DefaultVoltageColumn   = "voltage_pu"
+	DefaultQualityColumn   = "quality_flag"
 )
 
 type ColumnMapping struct {
@@ -40,6 +41,9 @@ func (m ColumnMapping) withDefaults() ColumnMapping {
 	}
 	m.Timestamp = strings.TrimSpace(m.Timestamp)
 	m.FrequencyHz = strings.TrimSpace(m.FrequencyHz)
+	if strings.TrimSpace(m.QualityFlag) == "" {
+		m.QualityFlag = DefaultQualityColumn
+	}
 	m.VoltagePU = strings.TrimSpace(m.VoltagePU)
 	m.VoltageAngleDeg = strings.TrimSpace(m.VoltageAngleDeg)
 	m.QualityFlag = strings.TrimSpace(m.QualityFlag)
@@ -107,6 +111,9 @@ func ParseCSV(r io.Reader, opts ParseOptions) (Series, error) {
 	indexes, columns, err := buildIndex(header, opts.Mapping.withDefaults())
 	if err != nil {
 		return Series{}, err
+	}
+	if opts.IgnoreBadQuality && indexes.quality < 0 {
+		return Series{}, errors.New("ignore_bad_quality requires an available quality flag column")
 	}
 
 	badFlags := badQualitySet(opts.BadQualityFlags)
@@ -233,7 +240,7 @@ func parseRecord(record []string, indexes columnIndexes, line int) (Sample, erro
 	if err != nil {
 		return Sample{}, err
 	}
-	volt, err := parsePositiveFloat(record, indexes.voltage, "voltage_pu", line)
+	volt, err := parseNonNegativeFloat(record, indexes.voltage, "voltage_pu", line)
 	if err != nil {
 		return Sample{}, err
 	}
@@ -282,17 +289,15 @@ func ResampleHold(samples []Sample, step time.Duration) ([]Sample, error) {
 	ordered := append([]Sample(nil), samples...)
 	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].Timestamp.Before(ordered[j].Timestamp) })
 	start, end := ordered[0].Timestamp, ordered[len(ordered)-1].Timestamp
-	var out []Sample
+	out := make([]Sample, 0, int(end.Sub(start)/step)+1)
 	idx := 0
 	last := ordered[0]
 	for t := start; !t.After(end); t = t.Add(step) {
-		bucketEnd := t.Add(step)
-		chosen := last
-		for idx < len(ordered) && ordered[idx].Timestamp.Before(bucketEnd) {
-			chosen = ordered[idx]
+		for idx < len(ordered) && !ordered[idx].Timestamp.After(t) {
+			last = ordered[idx]
 			idx++
 		}
-		last = chosen
+		chosen := last
 		chosen.Timestamp = t
 		out = append(out, chosen)
 	}
@@ -414,6 +419,17 @@ func parsePositiveFloat(record []string, index int, field string, line int) (flo
 	}
 	if v <= 0 {
 		return 0, fmt.Errorf("line %d: %s must be > 0", line, field)
+	}
+	return v, nil
+}
+
+func parseNonNegativeFloat(record []string, index int, field string, line int) (float64, error) {
+	v, err := parseFiniteFloat(requiredValue(record, index), field, line)
+	if err != nil {
+		return 0, err
+	}
+	if v < 0 {
+		return 0, fmt.Errorf("line %d: %s must be >= 0", line, field)
 	}
 	return v, nil
 }
