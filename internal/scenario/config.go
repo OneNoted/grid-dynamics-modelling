@@ -49,6 +49,9 @@ type WorkloadConfig struct {
 	RampDuration       string  `json:"ramp_duration"`
 	DeferrableFraction float64 `json:"deferrable_fraction"`
 	UrgencyClass       string  `json:"urgency_class,omitempty"`
+	SourceName         string  `json:"source_name,omitempty"`
+	Citation           string  `json:"citation,omitempty"`
+	License            string  `json:"license,omitempty"`
 }
 
 type FacilityConfig struct {

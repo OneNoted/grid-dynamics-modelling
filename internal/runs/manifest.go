@@ -61,7 +61,7 @@ func NewManifest(cfg scenario.Config, series pmu.Series) Manifest {
 		Controller: cfg.Controller,
 		Sources: []DataSource{
 			{Name: "Synthetic PMU tiny fixture", Kind: "pmu", Path: cfg.PMU.File, License: "synthetic fixture committed for tests"},
-			{Name: "Synthetic GenAI workload tiny fixture", Kind: "workload", Path: cfg.Workload.Source, License: "synthetic fixture committed for tests"},
+			workloadSource(cfg),
 		},
 	}
 }
@@ -76,6 +76,12 @@ func (m Manifest) WriteJSON(w io.Writer) error {
 	}
 	_, err = w.Write(append(data, '\n'))
 	return err
+}
+
+func workloadSource(cfg scenario.Config) DataSource {
+	name := defaultString(cfg.Workload.SourceName, "Synthetic GenAI workload tiny fixture")
+	license := defaultString(cfg.Workload.License, "synthetic fixture committed for tests")
+	return DataSource{Name: name, Kind: "workload", Path: cfg.Workload.Source, Citation: cfg.Workload.Citation, License: license}
 }
 
 func defaultString(value, fallback string) string {
