@@ -46,6 +46,34 @@ func TestServerExposesRunArtifacts(t *testing.T) {
 	}
 }
 
+func TestServerServesDashboardIndexFromConfiguredFS(t *testing.T) {
+	cfg, err := scenario.LoadJSON("../../scenarios/demo.json")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Simulation.Duration = "1s"
+	cfg.PMU.File = "../../" + cfg.PMU.File
+	cfg.Workload.Source = "../../" + cfg.Workload.Source
+	result, err := sim.Run(cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	dir := t.TempDir()
+	if err := sim.WriteBaselineArtifacts(dir, result); err != nil {
+		t.Fatalf("write artifacts: %v", err)
+	}
+	server, err := NewServer(dir, fstest.MapFS{"index.html": {Data: []byte("<main>dashboard</main>")}})
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.String() != "<main>dashboard</main>" {
+		t.Fatalf("unexpected index response code=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestServerRejectsBadTimeseriesMode(t *testing.T) {
 	cfg, err := scenario.LoadJSON("../../scenarios/demo.json")
 	if err != nil {

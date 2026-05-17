@@ -13,15 +13,16 @@ import (
 )
 
 type Server struct {
-	runDir string
-	static http.Handler
+	runDir   string
+	staticFS fs.FS
+	static   http.Handler
 }
 
 func NewServer(runDir string, staticFS fs.FS) (*Server, error) {
 	if err := requireRunArtifacts(runDir); err != nil {
 		return nil, err
 	}
-	return &Server{runDir: runDir, static: http.FileServer(http.FS(staticFS))}, nil
+	return &Server{runDir: runDir, staticFS: staticFS, static: http.FileServer(http.FS(staticFS))}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -36,8 +37,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/", s.index)
 	return mux
 }
-
-func StaticDir(dir string) http.FileSystem { return http.Dir(dir) }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]string{"status": "ok"})
@@ -82,7 +81,13 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		s.static.ServeHTTP(w, r)
 		return
 	}
-	http.ServeFile(w, r, filepath.Join("web", "static", "index.html"))
+	data, err := fs.ReadFile(s.staticFS, "index.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(data)
 }
 
 func readTimeseries(path string) ([]map[string]any, error) {
