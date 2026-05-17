@@ -105,11 +105,11 @@ func recoveryTime(points []Point) float64 {
 	var start *time.Time
 	var end *time.Time
 	for _, p := range points {
-		if p.DeferredQueueMWh > 1e-9 && start == nil {
+		if p.DeferredQueueMWh > 1e-3 && start == nil {
 			t := p.Timestamp
 			start = &t
 		}
-		if start != nil && p.DeferredQueueMWh <= 1e-9 {
+		if start != nil && end == nil && p.DeferredQueueMWh <= 1e-3 {
 			t := p.Timestamp
 			end = &t
 		}

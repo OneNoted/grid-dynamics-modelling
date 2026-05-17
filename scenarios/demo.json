@@ -19,7 +19,7 @@
   "workload": {
     "source": "data/samples/genai_power_tiny.csv",
     "scale_mw": 80,
-    "ramp_start": "5m",
+    "ramp_start": "0s",
     "ramp_duration": "10m",
     "deferrable_fraction": 0.25,
     "urgency_class": "normal"
@@ -29,9 +29,9 @@
     "pue_base": 1.15
   },
   "bess": {
-    "power_mw": 20,
-    "energy_mwh": 10,
-    "initial_soc": 0.60,
+    "power_mw": 50,
+    "energy_mwh": 20,
+    "initial_soc": 0.80,
     "min_soc": 0.20,
     "max_soc": 1.0
   },

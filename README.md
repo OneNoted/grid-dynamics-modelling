@@ -68,7 +68,7 @@ The preferred real workload source is the Dataset of Generative AI Workload Powe
 - Landing page: https://data.nlr.gov/submissions/312
 - DOI: `10.7799/3025227`
 
-See `docs/genai-workload-data.md` for download, normalization, citation, and scenario-template guidance. Raw downloads should stay in `data/external/` or `data/raw/` and must not be committed.
+See `docs/genai-workload-data.md` for download, normalization, citation, scenario-template guidance, and the revised Phase 8 acceptance note. Raw downloads should stay in `data/external/` or `data/raw/` and must not be committed.
 
 ## Model assumptions
 
@@ -84,7 +84,7 @@ Dashboard screenshots are not committed yet. Placeholder capture guidance lives 
 
 ## Known limitations
 
-- The committed demo scenario is intentionally tiny and can report infeasible ramp-rate compliance with the configured BESS size; infeasibility is surfaced in `metrics.json` rather than hidden.
+- The committed demo scenario is intentionally tiny but configured to exercise PMU-event deferral, BESS dispatch, queue recovery, and feasible ramp-rate compliance; deliberately under-sized BESS scenarios are covered by tests and surface infeasibility in `metrics.json` rather than hiding it.
 - Real GenAI data validation is a documented manual path until a license-safe normalized sample is selected externally.
 - The web dashboard is dependency-light and serves checked-in JavaScript directly; `web/src/app.tsx` records the TypeScript data shape for a future bundler if needed.
 - YAML scenario parsing is deferred; current scenarios are JSON decoded into the same contract.

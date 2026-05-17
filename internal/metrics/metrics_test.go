@@ -31,3 +31,18 @@ func TestComputeReportsInfeasibleRampAndRideThrough(t *testing.T) {
 		t.Fatalf("expected infeasible summary %+v", summary)
 	}
 }
+
+func TestComputeUsesFirstQueueRecoveryTime(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	points := []Point{
+		{Timestamp: start, NetGridMW: 0, FrequencyHz: 60, VoltagePU: 1},
+		{Timestamp: start.Add(time.Minute), NetGridMW: 1, DeferredQueueMWh: 0.1, FrequencyHz: 60, VoltagePU: 1},
+		{Timestamp: start.Add(2 * time.Minute), NetGridMW: 2, DeferredQueueMWh: 0, FrequencyHz: 60, VoltagePU: 1},
+		{Timestamp: start.Add(10 * time.Minute), NetGridMW: 3, DeferredQueueMWh: 0, FrequencyHz: 60, VoltagePU: 1},
+	}
+	cfg := scenario.Config{Controller: scenario.ControllerConfig{RampLimitMWPerMin: 5, RecoveryWindow: "30m", EventFrequencyLowHz: 59.95, EventVoltageLowPU: 0.95}}
+	summary := Compute(points, points, cfg, pmu.EventSummary{})
+	if summary.WorkloadRecoveryTimeSeconds != 60 {
+		t.Fatalf("expected first recovery at 60s, got %+v", summary)
+	}
+}

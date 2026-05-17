@@ -189,6 +189,9 @@ func (q *Queue) Step(deferrableMW float64, eventActive bool, recoveryCapacityMW 
 	recoveryCapacityMW = nonNegative(recoveryCapacityMW)
 	recovered := math.Min(q.DeferredMWh, recoveryCapacityMW*hours)
 	q.DeferredMWh -= recovered
+	if q.DeferredMWh <= 1e-6 {
+		q.DeferredMWh = 0
+	}
 	return QueueStep{ServedDeferrableMW: served + recovered/hours, RecoveredMWh: recovered, RemainingMWh: q.DeferredMWh, InfeasibleRecovery: q.DeferredMWh > 1e-9 && recoveryCapacityMW == 0}
 }
 

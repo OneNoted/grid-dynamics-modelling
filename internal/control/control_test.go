@@ -30,3 +30,11 @@ func TestPolicyRecoversDeferredWorkWithinWindow(t *testing.T) {
 		t.Fatalf("unexpected delivered load %+v", decision)
 	}
 }
+
+func TestPolicyRequestsChargingToCapDownwardRamp(t *testing.T) {
+	p := New(5, 30*time.Minute)
+	request := p.BESSRequest(50, 40, time.Minute)
+	if request > -4.99 || request < -5.01 {
+		t.Fatalf("expected -5 MW charge request, got %f", request)
+	}
+}

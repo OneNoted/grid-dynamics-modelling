@@ -3,6 +3,7 @@ package sim
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -38,6 +39,9 @@ type Point struct {
 	NetGridMW        float64   `json:"net_grid_mw"`
 	DeferredQueueMWh float64   `json:"deferred_queue_mwh"`
 	EventActive      bool      `json:"event_active"`
+	ControllerAction string    `json:"controller_action,omitempty"`
+	DeferredMW       float64   `json:"deferred_mw,omitempty"`
+	RecoveredMW      float64   `json:"recovered_mw,omitempty"`
 }
 
 type Result struct {
@@ -105,25 +109,41 @@ func runControlled(cfg scenario.Config, events pmu.EventSummary) ([]Point, error
 	var queue workload.Queue
 	controlled := make([]Point, 0, int(duration/step)+1)
 	previousNet := 0.0
+	recoveryRateMW := 0.0
 	for ts := start; !ts.After(start.Add(duration)); ts = ts.Add(step) {
 		demand := workloadModel.DemandAt(ts, start)
 		eventActive := isEventActive(events, ts)
-		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, previousNet)
+		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, 0)
 		if eventActive {
+			recoveryRateMW = 0
 			queue.Step(demand.DeferrableMW, true, 0, step)
 		} else {
+			if queue.DeferredMWh > 0 && recoveryRateMW == 0 {
+				recoveryRateMW = queue.DeferredMWh / (0.9 * recoveryWindow.Hours())
+			}
+			if recoveryRateMW > 0 {
+				decision.RecoveredMW = math.Min(queue.DeferredMWh/step.Hours(), recoveryRateMW)
+				decision.DeliveredITMW = demand.ITMW + decision.RecoveredMW
+				decision.Action = "recover_deferred_work"
+			}
 			queue.Step(0, false, decision.RecoveredMW, step)
+			if queue.DeferredMWh == 0 {
+				recoveryRateMW = 0
+			}
 		}
 		fac := facilityModel.Step(decision.DeliveredITMW, step)
-		decision = policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, fac.FacilityMW)
-		dispatch := battery.Dispatch(decision.BESSRequestMW, step)
+		dispatch := battery.Dispatch(policy.BESSRequest(previousNet, fac.FacilityMW, step), step)
+		action := decision.Action
+		if dispatch.ActualMW > 0 {
+			action += "+dispatch_bess"
+		}
 		pmuSample := sampleAt(pmuSeries.Samples, ts)
 		net := fac.FacilityMW - dispatch.ActualMW
 		controlled = append(controlled, Point{
 			Timestamp: ts.UTC(), Mode: "controlled", FrequencyHz: pmuSample.FrequencyHz, VoltagePU: pmuSample.VoltagePU,
 			ITMW: decision.DeliveredITMW, UrgentMW: demand.UrgentMW, DeferrableMW: demand.DeferrableMW, CoolingMW: fac.CoolingMW,
 			FacilityMW: fac.FacilityMW, BESSPowerMW: dispatch.ActualMW, BESSSOC: dispatch.SOC, NetGridMW: net,
-			DeferredQueueMWh: queue.DeferredMWh, EventActive: eventActive,
+			DeferredQueueMWh: queue.DeferredMWh, EventActive: eventActive, ControllerAction: action, DeferredMW: decision.DeferredMW, RecoveredMW: decision.RecoveredMW,
 		})
 		previousNet = net
 	}
