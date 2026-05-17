@@ -17,6 +17,7 @@ import (
 	"grid-dynamics-modelling/internal/pmu"
 	"grid-dynamics-modelling/internal/scenario"
 	"grid-dynamics-modelling/internal/sim"
+	dashboardstatic "grid-dynamics-modelling/web/static"
 )
 
 func main() {
@@ -176,7 +177,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-	server, err := api.NewServer(runDir, os.DirFS("web/static"))
+	server, err := api.NewServer(runDir, dashboardstatic.FS)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
