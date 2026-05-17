@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -13,7 +15,7 @@ func TestRootHelp(t *testing.T) {
 		t.Fatalf("exit code=%d stderr=%s", code, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"griddyn", "validate-pmu", "validate-scenario"} {
+	for _, want := range []string{"griddyn", "validate-pmu", "validate-scenario", "run", "metrics", "serve"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("help missing %q:\n%s", want, out)
 		}
@@ -72,5 +74,64 @@ func TestValidateScenarioSmoke(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), `scenario "gpu-ramp-pmu-event-demo" is valid`) {
 		t.Fatalf("unexpected output: %s", stdout.String())
+	}
+}
+
+func TestRunScenarioWritesBaselineArtifacts(t *testing.T) {
+	outDir := t.TempDir()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir("../.."); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(wd) }()
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"run", "scenarios/demo.json", "--out", outDir}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "controlled samples written") {
+		t.Fatalf("unexpected stdout: %s", stdout.String())
+	}
+	for _, name := range []string{"manifest.json", "events.json", "baseline_timeseries.csv"} {
+		if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
+			t.Fatalf("missing %s: %v", name, err)
+		}
+	}
+}
+
+func TestMetricsCommandPrintsSummary(t *testing.T) {
+	outDir := t.TempDir()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir("../.."); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(wd) }()
+	var runOut, runErr bytes.Buffer
+	if code := run([]string{"run", "scenarios/demo.json", "--out", outDir}, &runOut, &runErr); code != 0 {
+		t.Fatalf("run exit=%d stderr=%s", code, runErr.String())
+	}
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"metrics", outDir}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("metrics exit=%d stderr=%s", code, stderr.String())
+	}
+	for _, want := range []string{"Peak ramp reduction", "Ramp violations", "Feasible:"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("metrics output missing %q:\n%s", want, stdout.String())
+		}
+	}
+}
+
+func TestServeRejectsMissingRunArtifacts(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"serve", "--run", t.TempDir(), "--addr", "127.0.0.1:0"}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "manifest.json") {
+		t.Fatalf("expected missing artifact error, code=%d stderr=%s", code, stderr.String())
 	}
 }
