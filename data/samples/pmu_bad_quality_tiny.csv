@@ -1,0 +1,4 @@
+timestamp,frequency_hz,voltage_pu,quality_flag,source_id
+2026-01-01T00:00:00Z,60.000,1.000,good,synthetic-pmu
+2026-01-01T00:00:01Z,59.900,0.900,bad,synthetic-pmu
+2026-01-01T00:00:02Z,60.000,1.000,good,synthetic-pmu
