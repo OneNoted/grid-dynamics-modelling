@@ -8,7 +8,10 @@ import (
 	"sort"
 	"time"
 
+	"grid-dynamics-modelling/internal/bess"
+	"grid-dynamics-modelling/internal/control"
 	"grid-dynamics-modelling/internal/facility"
+	"grid-dynamics-modelling/internal/metrics"
 	"grid-dynamics-modelling/internal/pmu"
 	"grid-dynamics-modelling/internal/runs"
 	"grid-dynamics-modelling/internal/scenario"
@@ -43,7 +46,88 @@ type Result struct {
 	Manifest   runs.Manifest    `json:"manifest"`
 	Events     pmu.EventSummary `json:"events"`
 	Baseline   []Point          `json:"baseline"`
+	Controlled []Point          `json:"controlled,omitempty"`
+	Metrics    metrics.Summary  `json:"metrics,omitempty"`
 	PMUSummary pmu.Summary      `json:"pmu_summary"`
+}
+
+func Run(cfg scenario.Config) (Result, error) {
+	result, err := RunBaseline(cfg)
+	if err != nil {
+		return Result{}, err
+	}
+	controlled, err := runControlled(cfg, result.Events)
+	if err != nil {
+		return Result{}, err
+	}
+	result.Controlled = controlled
+	result.Metrics = metrics.Compute(toMetricPoints(result.Baseline), toMetricPoints(controlled), cfg, result.Events)
+	return result, nil
+}
+
+func runControlled(cfg scenario.Config, events pmu.EventSummary) ([]Point, error) {
+	start, duration, step, err := parseSimulation(cfg.Simulation)
+	if err != nil {
+		return nil, err
+	}
+	pmuSeries, err := loadPMU(cfg)
+	if err != nil {
+		return nil, err
+	}
+	trace, err := workload.LoadFile(cfg.Workload.Source)
+	if err != nil {
+		return nil, err
+	}
+	rampStart, err := time.ParseDuration(cfg.Workload.RampStart)
+	if err != nil {
+		return nil, fmt.Errorf("parse workload.ramp_start: %w", err)
+	}
+	rampDuration, err := time.ParseDuration(cfg.Workload.RampDuration)
+	if err != nil {
+		return nil, fmt.Errorf("parse workload.ramp_duration: %w", err)
+	}
+	recoveryWindow, err := time.ParseDuration(cfg.Controller.RecoveryWindow)
+	if err != nil {
+		return nil, fmt.Errorf("parse controller.recovery_window: %w", err)
+	}
+	workloadModel, err := workload.NewModel(trace, cfg.Workload.ScaleMW, rampStart, rampDuration, cfg.Workload.DeferrableFraction)
+	if err != nil {
+		return nil, err
+	}
+	facilityModel, err := facility.New(cfg.Facility.PUEBase, cfg.Facility.CoolingLagSeconds)
+	if err != nil {
+		return nil, err
+	}
+	battery, err := bess.New(bess.Config{PowerMW: cfg.BESS.PowerMW, EnergyMWh: cfg.BESS.EnergyMWh, InitialSOC: cfg.BESS.InitialSOC, MinSOC: cfg.BESS.MinSOC, MaxSOC: cfg.BESS.MaxSOC})
+	if err != nil {
+		return nil, err
+	}
+	policy := control.New(cfg.Controller.RampLimitMWPerMin, recoveryWindow)
+	var queue workload.Queue
+	controlled := make([]Point, 0, int(duration/step)+1)
+	previousNet := 0.0
+	for ts := start; !ts.After(start.Add(duration)); ts = ts.Add(step) {
+		demand := workloadModel.DemandAt(ts, start)
+		eventActive := isEventActive(events, ts)
+		decision := policy.Decide(demand, queue.DeferredMWh, eventActive, step, previousNet, 0)
+		if eventActive {
+			queue.Step(demand.DeferrableMW, true, 0, step)
+		} else {
+			queue.Step(0, false, decision.RecoveredMW, step)
+		}
+		fac := facilityModel.Step(decision.DeliveredITMW, step)
+		dispatch := battery.Dispatch(policy.BESSRequest(previousNet, fac.FacilityMW, step), step)
+		pmuSample := sampleAt(pmuSeries.Samples, ts)
+		net := fac.FacilityMW - dispatch.ActualMW
+		controlled = append(controlled, Point{
+			Timestamp: ts.UTC(), Mode: "controlled", FrequencyHz: pmuSample.FrequencyHz, VoltagePU: pmuSample.VoltagePU,
+			ITMW: decision.DeliveredITMW, UrgentMW: demand.UrgentMW, DeferrableMW: demand.DeferrableMW, CoolingMW: fac.CoolingMW,
+			FacilityMW: fac.FacilityMW, BESSPowerMW: dispatch.ActualMW, BESSSOC: dispatch.SOC, NetGridMW: net,
+			DeferredQueueMWh: queue.DeferredMWh, EventActive: eventActive,
+		})
+		previousNet = net
+	}
+	return controlled, nil
 }
 
 func RunBaseline(cfg scenario.Config) (Result, error) {
@@ -107,7 +191,26 @@ func WriteBaselineArtifacts(dir string, result Result) error {
 	if err := writeJSON(filepath.Join(dir, "events.json"), result.Events); err != nil {
 		return err
 	}
-	return WritePointsCSV(filepath.Join(dir, "baseline_timeseries.csv"), result.Baseline)
+	if err := WritePointsCSV(filepath.Join(dir, "baseline_timeseries.csv"), result.Baseline); err != nil {
+		return err
+	}
+	if len(result.Controlled) > 0 {
+		if err := WritePointsCSV(filepath.Join(dir, "controlled_timeseries.csv"), result.Controlled); err != nil {
+			return err
+		}
+		if err := writeJSON(filepath.Join(dir, "metrics.json"), result.Metrics); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func toMetricPoints(points []Point) []metrics.Point {
+	out := make([]metrics.Point, len(points))
+	for i, p := range points {
+		out[i] = metrics.Point{Timestamp: p.Timestamp, NetGridMW: p.NetGridMW, DeferredQueueMWh: p.DeferredQueueMWh, BESSPowerMW: p.BESSPowerMW, BESSSOC: p.BESSSOC, FrequencyHz: p.FrequencyHz, VoltagePU: p.VoltagePU, EventActive: p.EventActive}
+	}
+	return out
 }
 
 func parseSimulation(cfg scenario.SimulationConfig) (time.Time, time.Duration, time.Duration, error) {
