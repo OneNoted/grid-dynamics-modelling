@@ -51,3 +51,24 @@ Rules:
 
 - Tiny fixture path: tested automatically by `go test ./...` and the demo run.
 - Real GenAI profile path: documented for manual validation; raw large dataset is intentionally not committed.
+
+## Phase 8 acceptance note
+
+The original Phase 8 plan asked for one real GenAI profile to be documented as manually tested. This follow-up revises the repository acceptance criterion to avoid implying an unperformed large-data validation: the public dataset is a 1021.3 MB archive, so this repository ships the normalized import contract, scenario template, and manifest citation fields, while the actual raw-profile smoke remains a local/manual validation step that must be recorded with the operator's selected profile path and run directory.
+
+Use this evidence template after running a real local profile:
+
+```text
+Manual real-profile validation
+Date:
+Dataset: Dataset of Generative AI Workload Power Profiles, DOI 10.7799/3025227
+Archive version/date:
+Selected profile path:
+Normalized CSV path:
+Scenario path:
+Command: go run ./cmd/griddyn run <scenario> --out <run-dir>
+Metrics command: go run ./cmd/griddyn metrics <run-dir>
+Result summary:
+```
+
+Do not mark the real-data path as completed until that template is filled from an actual external download/import run.
