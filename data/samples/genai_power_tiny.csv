@@ -1,4 +1,4 @@
 timestamp,workload_id,workload_kind,source,gpu_count,it_power_kw,deferrable_fraction,urgency_class,metadata
-2026-01-01T00:00:00Z,train-demo,training,synthetic,8,100,0.25,normal,"{\"note\":\"synthetic tiny fixture\"}"
-2026-01-01T00:00:01Z,train-demo,training,synthetic,8,125,0.25,normal,"{\"note\":\"synthetic tiny fixture\"}"
-2026-01-01T00:00:02Z,train-demo,training,synthetic,8,150,0.25,normal,"{\"note\":\"synthetic tiny fixture\"}"
+2026-01-01T00:00:00Z,train-demo,training,synthetic,8,100,0.25,normal,"{""note"":""synthetic tiny fixture""}"
+2026-01-01T00:00:01Z,train-demo,training,synthetic,8,125,0.25,normal,"{""note"":""synthetic tiny fixture""}"
+2026-01-01T00:00:02Z,train-demo,training,synthetic,8,150,0.25,normal,"{""note"":""synthetic tiny fixture""}"

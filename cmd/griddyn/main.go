@@ -12,6 +12,7 @@ import (
 
 	"grid-dynamics-modelling/internal/pmu"
 	"grid-dynamics-modelling/internal/scenario"
+	"grid-dynamics-modelling/internal/sim"
 )
 
 func main() {
@@ -29,6 +30,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runValidatePMU(args[1:], stdout, stderr)
 	case "validate-scenario":
 		return runValidateScenario(args[1:], stdout, stderr)
+	case "run":
+		return runScenario(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", cmd)
 		printRootHelp(stderr)
@@ -43,15 +46,82 @@ Usage:
   griddyn --help
   griddyn validate-pmu [flags] <pmu.csv>
   griddyn validate-scenario <scenario.json>
+  griddyn run [flags] <scenario.json>
 
 Commands:
   validate-pmu       Validate normalized or mapped PMU CSV and report detected events
   validate-scenario  Validate a JSON scenario config contract
+  run                Run a scenario and emit baseline artifacts
 
 Examples:
   griddyn validate-pmu data/samples/pmu_event_tiny.csv
   griddyn validate-pmu --frequency-column freq --voltage-column vpu data/samples/pmu_mapped_tiny.csv
-  griddyn validate-scenario scenarios/demo.json`)
+  griddyn validate-scenario scenarios/demo.json
+  griddyn run scenarios/demo.json --out runs/demo`)
+}
+
+func runScenario(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	outDir := "runs/demo"
+	fs.StringVar(&outDir, "out", outDir, "output run directory")
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Usage: griddyn run [flags] <scenario.json>")
+		fs.PrintDefaults()
+	}
+	args = normalizeRunArgs(args)
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 1 || strings.TrimSpace(fs.Arg(0)) == "" {
+		fs.Usage()
+		return 2
+	}
+	if strings.TrimSpace(outDir) == "" {
+		fmt.Fprintln(stderr, "--out is required")
+		return 2
+	}
+	cfg, err := scenario.LoadJSON(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	result, err := sim.RunBaseline(cfg)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if err := sim.WriteBaselineArtifacts(outDir, result); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "run %q complete: %d baseline samples written to %s\n", cfg.Name, len(result.Baseline), outDir)
+	return 0
+}
+
+func normalizeRunArgs(args []string) []string {
+	if len(args) < 2 {
+		return args
+	}
+	var flags []string
+	var positional []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--out" && i+1 < len(args) {
+			flags = append(flags, arg, args[i+1])
+			i++
+			continue
+		}
+		if strings.HasPrefix(arg, "--out=") {
+			flags = append(flags, arg)
+			continue
+		}
+		positional = append(positional, arg)
+	}
+	return append(flags, positional...)
 }
 
 func runValidateScenario(args []string, stdout, stderr io.Writer) int {
